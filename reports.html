@@ -9,6 +9,17 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
 </head>
 <body class="bg-zinc-950 text-zinc-200">
+    <!-- Auth diagnostic badge (dev) -->
+    <div id="auth-badge" class="fixed top-2 right-2 z-[60] text-white text-xs px-3 py-1 rounded-full font-mono"></div>
+
+    <!-- Login fallback (shown if no session) -->
+    <div id="login-fallback" class="hidden fixed inset-0 bg-zinc-950 flex items-center justify-center z-[70]">
+        <div class="text-center">
+            <p class="mb-4 text-zinc-300">Sesi berakhir. Silakan login kembali.</p>
+            <a href="login.html" class="px-6 py-3 bg-emerald-600 hover:bg-emerald-700 rounded-2xl font-semibold">Ke Login</a>
+        </div>
+    </div>
+
     <div class="max-w-6xl mx-auto px-6 py-8">
         <!-- Header -->
         <div class="flex items-center justify-between mb-8">
@@ -149,32 +160,47 @@
         const auth = firebase.auth();
 
         let allTransactions = []; // cache for reprint
-        let hadUser = false;
+        let started = false;
+
+        // Visible diagnostic badge (remove once stable)
+        function setBadge(txt, color) {
+            const b = document.getElementById('auth-badge');
+            if (b) { b.innerText = txt; b.style.background = color; }
+        }
+        setBadge('AUTH: mengecek...', '#666');
 
         function startReports() {
+            if (started) return;
+            started = true;
+            setBadge('AUTH: login ✓', '#16a34a');
             loadReport('daily');
         }
 
-        // Robust auth guard: handle the null→user flicker on page load.
-        // Only redirect to login if we NEVER saw a user (truly unauthenticated).
+        // If already authenticated (came from kasir), start immediately
+        if (auth.currentUser) {
+            startReports();
+        }
+
+        // Auth state: start on user; on null just wait (do NOT redirect on flicker)
         const unsub = auth.onAuthStateChanged(user => {
             if (user) {
-                hadUser = true;
-                unsub();
                 startReports();
-            } else if (hadUser) {
-                // was authenticated, now logged out → send to login
-                window.location.replace('login.html');
+            } else {
+                setBadge('AUTH: null (tunggu...)', '#ca8a04');
             }
-            // else: initial null while session restores — wait
         });
 
-        // Fallback: if no user appears after a generous delay, go to login.
+        // Only redirect if TRULY no session after a generous delay
         setTimeout(() => {
-            if (!hadUser) {
-                window.location.replace('login.html');
+            if (!started && !auth.currentUser) {
+                setBadge('AUTH: tidak login → ke login', '#dc2626');
+                setTimeout(() => window.location.replace('login.html'), 1200);
             }
-        }, 4000);
+        }, 6000);
+
+        function showLoginFallback() {
+            document.getElementById('login-fallback').classList.remove('hidden');
+        }
 
         function loadReport(type) {
             let startDate = new Date();

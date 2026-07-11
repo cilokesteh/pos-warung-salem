@@ -151,23 +151,33 @@
         let allTransactions = []; // cache for reprint
         let authHandled = false;
 
-        const unsub = auth.onAuthStateChanged(user => {
+        function startReports() {
             if (authHandled) return;
+            authHandled = true;
+            loadReport('daily');
+        }
+
+        // If already authenticated (e.g. navigated from kasir), start immediately
+        if (auth.currentUser) {
+            startReports();
+        }
+
+        // Firebase persists the session locally, so on navigation onAuthStateChanged
+        // fires with the user. We only redirect to login if TRULY unauthenticated.
+        const unsub = auth.onAuthStateChanged(user => {
             if (user) {
                 unsub();
-                authHandled = true;
-                loadReport('daily'); // load only after auth confirmed (token attached)
-            } else {
-                // Only redirect if we're truly not logged in after a short grace period
-                setTimeout(() => {
-                    if (!authHandled) {
-                        authHandled = true;
-                        unsub();
-                        window.location.href = 'login.html';
-                    }
-                }, 800);
+                startReports();
             }
+            // if null: do nothing yet — the guard below decides
         });
+
+        // Guard: if after a delay there is still no user, go to login.
+        setTimeout(() => {
+            if (!authHandled && !auth.currentUser) {
+                window.location.replace('login.html');
+            }
+        }, 2000);
 
         function loadReport(type) {
             let startDate = new Date();

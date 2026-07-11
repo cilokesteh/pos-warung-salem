@@ -58,6 +58,9 @@
         firebase.initializeApp(firebaseConfig);
         const auth = firebase.auth();
 
+        // Ensure session persists across pages (localStorage)
+        auth.setPersistence(firebase.auth.Auth.Persistence.LOCAL).catch(() => {});
+
         const loginForm = document.getElementById('login-form');
         const errorMessage = document.getElementById('error-message');
 

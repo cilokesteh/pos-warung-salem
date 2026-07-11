@@ -159,6 +159,9 @@
         const db = firebase.firestore();
         const auth = firebase.auth();
 
+        // Ensure session persists across pages (localStorage)
+        auth.setPersistence(firebase.auth.Auth.Persistence.LOCAL).catch(() => {});
+
         let allTransactions = []; // cache for reprint
         let started = false;
 

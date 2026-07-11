@@ -263,18 +263,33 @@
         let editingStockTemp = 0;
 
         // Initialize
-        let initialized = false;
         let dbReady = false;
-        auth.onAuthStateChanged(user => {
-            if (initialized) return;
-            initialized = true;
+        let authHandled = false;
+
+        function startApp(user) {
+            if (authHandled) return;
+            authHandled = true;
+            document.getElementById('admin-name').innerText = user.email || 'Admin';
+            loadProducts();
+        }
+
+        // Firebase may fire null first while restoring the persisted session,
+        // then fire again with the actual user. So we only act on a real user,
+        // and use a timeout to redirect to login only if truly unauthenticated.
+        const unsub = auth.onAuthStateChanged(user => {
             if (user) {
-                document.getElementById('admin-name').innerText = user.email || 'Admin';
-                loadProducts();
-            } else {
-                window.location.href = 'login.html';
+                unsub(); // resolved: we have a user, stop listening
+                startApp(user);
             }
+            // if null, wait — could be transient session restore
         });
+
+        // If no user after auth resolves (~2s), redirect to login
+        setTimeout(() => {
+            if (!auth.currentUser) {
+                window.location.replace('login.html');
+            }
+        }, 2000);
 
         function waitForProducts() {
             return new Promise(resolve => {

@@ -162,7 +162,6 @@
         let allTransactions = []; // cache for reprint
         let started = false;
 
-        // Visible diagnostic badge (remove once stable)
         function setBadge(txt, color) {
             const b = document.getElementById('auth-badge');
             if (b) { b.innerText = txt; b.style.background = color; }
@@ -176,31 +175,31 @@
             loadReport('daily');
         }
 
-        // If already authenticated (came from kasir), start immediately
-        if (auth.currentUser) {
-            startReports();
-        }
-
-        // Auth state: start on user; on null just wait (do NOT redirect on flicker)
-        const unsub = auth.onAuthStateChanged(user => {
-            if (user) {
+        // Poll for an authenticated user (handles slow session restore on fresh page load).
+        // Never auto-redirect to login.html — that caused the bounce to kasir.
+        let pollCount = 0;
+        const poll = setInterval(() => {
+            pollCount++;
+            if (auth.currentUser) {
+                clearInterval(poll);
                 startReports();
+            } else if (pollCount >= 15) {
+                // 15s passed, still no session → show manual login (no bounce)
+                clearInterval(poll);
+                setBadge('AUTH: tidak login', '#dc2626');
+                document.getElementById('login-fallback').classList.remove('hidden');
             } else {
-                setBadge('AUTH: null (tunggu...)', '#ca8a04');
+                setBadge('AUTH: menunggu... (' + pollCount + ')', '#ca8a04');
+            }
+        }, 1000);
+
+        // Also react to auth state changes immediately
+        auth.onAuthStateChanged(user => {
+            if (user) {
+                clearInterval(poll);
+                startReports();
             }
         });
-
-        // Only redirect if TRULY no session after a generous delay
-        setTimeout(() => {
-            if (!started && !auth.currentUser) {
-                setBadge('AUTH: tidak login → ke login', '#dc2626');
-                setTimeout(() => window.location.replace('login.html'), 1200);
-            }
-        }, 6000);
-
-        function showLoginFallback() {
-            document.getElementById('login-fallback').classList.remove('hidden');
-        }
 
         function loadReport(type) {
             let startDate = new Date();

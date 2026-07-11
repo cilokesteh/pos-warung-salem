@@ -287,18 +287,28 @@
         }
 
         function loadProducts() {
-            db.collection("products").orderBy("category").onSnapshot(snapshot => {
-                products = [];
-                snapshot.forEach(doc => {
-                    products.push({ id: doc.id, ...doc.data() });
-                });
-                dbReady = true;
-                renderProducts();
-                updateStats();
-            }, error => {
-                console.error("Firestore error:", error);
-                dbReady = true;
-            });
+            db.collection("products").onSnapshot(
+                snapshot => {
+                    products = [];
+                    snapshot.forEach(doc => {
+                        products.push({ id: doc.id, ...doc.data() });
+                    });
+                    // Sort client-side by category (avoid Firestore index dependency)
+                    const order = { 'Makanan': 0, 'Minuman': 1, 'Cemilan': 2, 'Lainnya': 3 };
+                    products.sort((a, b) => (order[a.category] ?? 9) - (order[b.category] ?? 9));
+                    dbReady = true;
+                    renderProducts();
+                    updateStats();
+                },
+                error => {
+                    console.error("Firestore read error:", error);
+                    dbReady = true;
+                    const container = document.getElementById('product-list');
+                    if (container) {
+                        container.innerHTML = `<div class="text-center py-8 text-red-400 text-sm">Gagal muat produk:<br>${error.message}</div>`;
+                    }
+                }
+            );
         }
 
         function setCategoryFilter(category) {
@@ -675,7 +685,16 @@
 
         function logout() {
             auth.signOut().then(() => {
-                window.location.href = 'login.html';
+                // Clear local state
+                cart = [];
+                products = [];
+                selectedPayment = null;
+                dbReady = false;
+                // Use replace to prevent back-button to cached index
+                window.location.replace('login.html');
+            }).catch(err => {
+                console.error("Logout error:", err);
+                alert('Gagal logout: ' + err.message);
             });
         }
 

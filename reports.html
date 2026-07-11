@@ -25,6 +25,7 @@
         <!-- Filter -->
         <div class="bg-zinc-900 rounded-3xl border border-zinc-800 p-6 mb-6">
             <div class="flex flex-wrap gap-3">
+                <button onclick="loadReport('all')" class="px-5 py-2.5 bg-zinc-800 hover:bg-zinc-700 rounded-2xl text-sm font-medium">Semua</button>
                 <button onclick="loadReport('daily')" class="px-5 py-2.5 bg-emerald-600 hover:bg-emerald-700 rounded-2xl text-sm font-medium">Hari Ini</button>
                 <button onclick="loadReport('weekly')" class="px-5 py-2.5 bg-zinc-800 hover:bg-zinc-700 rounded-2xl text-sm font-medium">7 Hari Terakhir</button>
                 <button onclick="loadReport('monthly')" class="px-5 py-2.5 bg-zinc-800 hover:bg-zinc-700 rounded-2xl text-sm font-medium">Bulan Ini</button>
@@ -181,10 +182,13 @@
                 startDate = new Date(startDate.getFullYear(), 0, 1);
             }
 
-            db.collection("transactions")
-                .where("createdAt", ">=", startDate)
-                .orderBy("createdAt", "desc")
-                .get()
+            let query = db.collection("transactions");
+            if (type !== 'all') {
+                query = query.where("createdAt", ">=", startDate);
+            }
+            query = query.orderBy("createdAt", "desc");
+
+            query.get()
                 .then(snapshot => {
                     let total = 0;
                     let count = 0;

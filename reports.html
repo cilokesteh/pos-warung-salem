@@ -149,35 +149,32 @@
         const auth = firebase.auth();
 
         let allTransactions = []; // cache for reprint
-        let authHandled = false;
+        let hadUser = false;
 
         function startReports() {
-            if (authHandled) return;
-            authHandled = true;
             loadReport('daily');
         }
 
-        // If already authenticated (e.g. navigated from kasir), start immediately
-        if (auth.currentUser) {
-            startReports();
-        }
-
-        // Firebase persists the session locally, so on navigation onAuthStateChanged
-        // fires with the user. We only redirect to login if TRULY unauthenticated.
+        // Robust auth guard: handle the null→user flicker on page load.
+        // Only redirect to login if we NEVER saw a user (truly unauthenticated).
         const unsub = auth.onAuthStateChanged(user => {
             if (user) {
+                hadUser = true;
                 unsub();
                 startReports();
-            }
-            // if null: do nothing yet — the guard below decides
-        });
-
-        // Guard: if after a delay there is still no user, go to login.
-        setTimeout(() => {
-            if (!authHandled && !auth.currentUser) {
+            } else if (hadUser) {
+                // was authenticated, now logged out → send to login
                 window.location.replace('login.html');
             }
-        }, 2000);
+            // else: initial null while session restores — wait
+        });
+
+        // Fallback: if no user appears after a generous delay, go to login.
+        setTimeout(() => {
+            if (!hadUser) {
+                window.location.replace('login.html');
+            }
+        }, 4000);
 
         function loadReport(type) {
             let startDate = new Date();

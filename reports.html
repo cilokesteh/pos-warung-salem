@@ -155,7 +155,7 @@
             if (user) {
                 unsub();
                 authHandled = true;
-                // auth OK, stay on page
+                loadReport('daily'); // load only after auth confirmed (token attached)
             } else {
                 // Only redirect if we're truly not logged in after a short grace period
                 setTimeout(() => {
@@ -313,10 +313,7 @@
             document.getElementById('print-modal').classList.add('hidden');
         }
 
-        // Load daily report by default
-        window.onload = () => {
-            loadReport('daily');
-        };
+        // Report is loaded inside onAuthStateChanged (after auth token is attached)
     </script>
 </body>
 </html>

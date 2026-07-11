@@ -243,6 +243,9 @@
                         <i class="fa-solid fa-file-pdf mr-2"></i> PDF
                     </button>
                 </div>
+                <button onclick="closePrintModal()" class="w-full mt-2 py-2 bg-zinc-200 text-black rounded-xl text-sm">
+                    Tutup
+                </button>
             </div>
         </div>
     </div>
@@ -268,6 +271,7 @@
 
         let cart = [];
         let products = [];
+        let transactions = [];
         let selectedPayment = null;
         let lastTransaction = null;
         let currentCategoryFilter = 'all';
@@ -284,6 +288,7 @@
             authHandled = true;
             document.getElementById('admin-name').innerText = user.email || 'Admin';
             loadProducts();
+            loadTransactions();
         }
 
         // Firebase persists the session locally, so on refresh onAuthStateChanged
@@ -337,6 +342,50 @@
                     }
                 }
             );
+        }
+
+        function loadTransactions() {
+            db.collection("transactions").orderBy("createdAt", "desc").onSnapshot(
+                snapshot => {
+                    transactions = [];
+                    snapshot.forEach(doc => {
+                        transactions.push({ id: doc.id, ...doc.data() });
+                    });
+                    updateTodayStats();
+                },
+                error => {
+                    console.error("Transaction load error:", error);
+                }
+            );
+        }
+
+        function updateTodayStats() {
+            const now = new Date();
+            const startOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+
+            let count = 0;
+            let revenue = 0;
+            transactions.forEach(t => {
+                let ts;
+                if (t.createdAt && t.createdAt.toDate) {
+                    ts = t.createdAt.toDate();
+                } else if (t.createdAt instanceof Date) {
+                    ts = t.createdAt;
+                } else if (t.createdAt && t.createdAt.seconds) {
+                    ts = new Date(t.createdAt.seconds * 1000);
+                } else {
+                    return; // skip invalid
+                }
+                if (ts >= startOfDay) {
+                    count++;
+                    revenue += (t.total || 0);
+                }
+            });
+
+            const tCount = document.getElementById('today-transactions');
+            const tRev = document.getElementById('today-revenue');
+            if (tCount) tCount.innerText = count;
+            if (tRev) tRev.innerText = `Rp ${revenue.toLocaleString()}`;
         }
 
         function setCategoryFilter(category) {
@@ -792,6 +841,23 @@
             document.getElementById('total-products').innerText = products.length;
             const lowStock = products.filter(p => p.stock < 5).length;
             document.getElementById('low-stock').innerText = lowStock;
+            updateTodayStats();
+        }
+
+        function closePrintModal() {
+            document.getElementById('print-modal').classList.add('hidden');
+            // Reset cart after closing receipt
+            cart = [];
+            renderCart();
+            selectedPayment = null;
+            document.getElementById('cash-paid').value = '';
+            document.getElementById('change-amount').innerText = 'Rp 0';
+            document.getElementById('cash-input-section').classList.add('hidden');
+            document.querySelectorAll('.payment-btn').forEach(btn => {
+                btn.classList.remove('border-emerald-500', 'bg-emerald-900');
+                btn.classList.add('bg-zinc-800');
+            });
+            document.getElementById('checkout-btn').disabled = true;
         }
     </script>
 </body>

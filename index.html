@@ -264,6 +264,7 @@
 
         // Initialize
         let initialized = false;
+        let dbReady = false;
         auth.onAuthStateChanged(user => {
             if (initialized) return;
             initialized = true;
@@ -275,14 +276,28 @@
             }
         });
 
+        function waitForProducts() {
+            return new Promise(resolve => {
+                if (dbReady) return resolve();
+                const check = setInterval(() => {
+                    if (dbReady) { clearInterval(check); resolve(); }
+                }, 100);
+                setTimeout(() => { clearInterval(check); resolve(); }, 5000);
+            });
+        }
+
         function loadProducts() {
             db.collection("products").orderBy("category").onSnapshot(snapshot => {
                 products = [];
                 snapshot.forEach(doc => {
                     products.push({ id: doc.id, ...doc.data() });
                 });
+                dbReady = true;
                 renderProducts();
                 updateStats();
+            }, error => {
+                console.error("Firestore error:", error);
+                dbReady = true;
             });
         }
 
@@ -392,6 +407,10 @@
 
             if (!name || !price) return alert('Nama dan harga wajib diisi');
 
+            const btn = document.getElementById('save-btn');
+            btn.disabled = true;
+            btn.innerText = 'Menyimpan...';
+
             try {
                 if (editingProductId) {
                     await db.collection("products").doc(editingProductId).update({
@@ -405,7 +424,11 @@
                 }
                 hideProductModal();
             } catch (error) {
-                alert('Gagal menyimpan');
+                console.error("Save product error:", error);
+                alert('Gagal menyimpan: ' + (error.message || 'Unknown error'));
+            } finally {
+                btn.disabled = false;
+                btn.innerText = editingProductId ? 'Update' : 'Simpan';
             }
         }
 
@@ -452,8 +475,10 @@
         }
 
         function addToCart(productId) {
+            if (!dbReady) { alert('Data produk belum siap, tunggu sebentar...'); return; }
             const product = products.find(p => p.id === productId);
-            if (!product || product.stock <= 0) return;
+            if (!product) return;
+            if (product.stock <= 0) return;
 
             const existing = cart.find(item => item.id === productId);
             if (existing) {

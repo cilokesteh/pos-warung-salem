@@ -186,8 +186,8 @@
             if (auth.currentUser) {
                 clearInterval(poll);
                 startReports();
-            } else if (pollCount >= 15) {
-                // 15s passed, still no session → show manual login (no bounce)
+            } else if (pollCount >= 20) {
+                // 20s passed, still no session → show manual login (no bounce)
                 clearInterval(poll);
                 setBadge('AUTH: tidak login', '#dc2626');
                 document.getElementById('login-fallback').classList.remove('hidden');

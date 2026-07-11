@@ -6,6 +6,7 @@
     <title>Laporan - POS Warung Salem</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
 </head>
 <body class="bg-zinc-950 text-zinc-200">
     <div class="max-w-6xl mx-auto px-6 py-8">
@@ -57,6 +58,7 @@
                             <th class="py-3 px-4">Tanggal</th>
                             <th class="py-3 px-4">Item</th>
                             <th class="py-3 px-4 text-right">Total</th>
+                            <th class="py-3 px-4 text-center">Aksi</th>
                         </tr>
                     </thead>
                     <tbody id="transactions-table" class="text-sm">
@@ -67,13 +69,73 @@
         </div>
     </div>
 
+    <!-- Reprint Modal -->
+    <div id="print-modal" class="hidden fixed inset-0 bg-black/70 flex items-center justify-center z-50">
+        <div class="bg-white rounded-3xl p-4 max-h-[90vh] overflow-auto">
+            <div id="receipt" class="receipt">
+                <div class="text-center mb-2">
+                    <div class="logo">WARUNG SALEM</div>
+                    <div class="sub">Point of Sale System</div>
+                    <div class="dash"></div>
+                </div>
+                <div id="print-content"><!-- generated --></div>
+                <div class="dash"></div>
+                <div class="text-center footer">
+                    <p>Terima kasih atas kunjungan Anda</p>
+                    <p>Barang yang sudah dibeli</p>
+                    <p>tidak dapat ditukar</p>
+                </div>
+            </div>
+            <div class="mt-4 text-center">
+                <div class="flex gap-2">
+                    <button onclick="doPrint()" class="flex-1 py-2 bg-black text-white rounded-xl">
+                        <i class="fa-solid fa-print mr-2"></i> Cetak
+                    </button>
+                    <button onclick="downloadPDF()" class="flex-1 py-2 bg-blue-600 text-white rounded-xl">
+                        <i class="fa-solid fa-file-pdf mr-2"></i> PDF
+                    </button>
+                </div>
+                <button onclick="closePrintModal()" class="w-full mt-2 py-2 bg-zinc-200 text-black rounded-xl text-sm">
+                    Tutup
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <style>
+        .receipt {
+            width: 80mm;
+            background: #fff;
+            color: #000;
+            font-family: 'Courier New', Courier, monospace;
+            font-size: 12px;
+            font-weight: 700;
+            line-height: 1.35;
+            padding: 4mm 3mm;
+            box-sizing: border-box;
+        }
+        .receipt .logo { font-size: 18px; font-weight: 900; letter-spacing: 1px; }
+        .receipt .sub { font-size: 10px; font-weight: 400; color: #444; }
+        .receipt .dash { border-top: 1px dashed #000; margin: 6px 0; }
+        .receipt .row { display: flex; justify-content: space-between; }
+        .receipt .muted { font-weight: 400; color: #333; }
+        .receipt .footer { font-weight: 400; font-size: 10px; color: #333; margin-top: 4px; }
+        .receipt .total-line { font-size: 14px; font-weight: 900; }
+        @media print {
+            body * { visibility: hidden; }
+            #print-modal, #print-modal * { visibility: visible; }
+            #print-modal { position: absolute; left: 0; top: 0; background: #fff; }
+            .receipt { width: 80mm; }
+        }
+    </style>
+
     <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-auth-compat.js"></script>
 
     <script>
         const firebaseConfig = {
-            apiKey: "AIzaSyAnnCmMT3vV-7Qx9HR3ww1sZ7h_MVh6geo",
+            apiKey: "«redacted»",
             authDomain: "pos-warung-salem.firebaseapp.com",
             projectId: "pos-warung-salem",
             storageBucket: "pos-warung-salem.firebasestorage.app",
@@ -85,6 +147,8 @@
         const db = firebase.firestore();
         const auth = firebase.auth();
 
+        let allTransactions = []; // cache for reprint
+
         auth.onAuthStateChanged(user => {
             if (!user) {
                 window.location.href = 'login.html';
@@ -93,7 +157,6 @@
 
         function loadReport(type) {
             let startDate = new Date();
-            let endDate = new Date();
 
             if (type === 'daily') {
                 startDate.setHours(0, 0, 0, 0);
@@ -113,35 +176,134 @@
                     let total = 0;
                     let count = 0;
                     let html = '';
+                    allTransactions = [];
 
                     snapshot.forEach(doc => {
                         const data = doc.data();
+                        data.id = doc.id;
+                        allTransactions.push(data);
                         total += data.total;
                         count++;
 
                         const date = data.createdAt ? data.createdAt.toDate() : new Date();
-                        const dateStr = date.toLocaleDateString('id-ID');
+                        const dateStr = date.toLocaleString('id-ID');
+                        const methodNames = { cash: 'Cash', qris: 'QRIS', transfer: 'Transfer' };
 
                         html += `
                             <tr class="border-b border-zinc-800">
                                 <td class="py-4 px-4">${dateStr}</td>
-                                <td class="py-4 px-4">${data.items.length} item</td>
+                                <td class="py-4 px-4">${data.items.length} item &middot; ${methodNames[data.paymentMethod] || data.paymentMethod}</td>
                                 <td class="py-4 px-4 text-right font-semibold">Rp ${data.total.toLocaleString()}</td>
+                                <td class="py-4 px-4 text-center">
+                                    <button onclick="reprint('${data.id}')" class="px-3 py-1.5 bg-zinc-800 hover:bg-emerald-700 rounded-lg text-xs flex items-center gap-x-1 mx-auto" title="Cetak Ulang Nota">
+                                        <i class="fa-solid fa-print"></i> Cetak Ulang
+                                    </button>
+                                </td>
                             </tr>
                         `;
                     });
 
-                    document.getElementById('transactions-table').innerHTML = html || '<tr><td colspan="3" class="py-8 text-center text-zinc-500">Tidak ada transaksi</td></tr>';
+                    document.getElementById('transactions-table').innerHTML = html || '<tr><td colspan="4" class="py-8 text-center text-zinc-500">Tidak ada transaksi</td></tr>';
                     document.getElementById('total-transactions').innerText = count;
                     document.getElementById('total-revenue').innerText = `Rp ${total.toLocaleString()}`;
                     document.getElementById('avg-transaction').innerText = count > 0 ? `Rp ${Math.round(total / count).toLocaleString()}` : 'Rp 0';
+                })
+                .catch(err => {
+                    console.error(err);
+                    alert('Gagal memuat laporan: ' + err.message);
                 });
+        }
+
+        function reprint(id) {
+            const tx = allTransactions.find(t => t.id === id);
+            if (!tx) {
+                alert('Data transaksi tidak ditemukan');
+                return;
+            }
+            showReceipt(tx);
+        }
+
+        function showReceipt(tx) {
+            const modal = document.getElementById('print-modal');
+            const content = document.getElementById('print-content');
+            const paymentNames = { cash: 'Cash', qris: 'QRIS', transfer: 'Transfer' };
+            const date = tx.createdAt ? (tx.createdAt.toDate ? tx.createdAt.toDate() : new Date(tx.createdAt.seconds * 1000)) : new Date();
+
+            let html = `
+                <div class="muted" style="margin-bottom:4px;">
+                    <div>Tgl: ${date.toLocaleDateString('id-ID')} ${date.toLocaleTimeString('id-ID')}</div>
+                    <div>No: ${tx.id}</div>
+                    <div>Bayar: ${paymentNames[tx.paymentMethod] || tx.paymentMethod}</div>
+                </div>
+                <div class="dash"></div>
+            `;
+
+            tx.items.forEach(item => {
+                html += `
+                    <div class="row" style="margin-bottom:2px;">
+                        <span>${item.name} × ${item.quantity}</span>
+                        <span>${(item.price * item.quantity).toLocaleString()}</span>
+                    </div>
+                `;
+            });
+
+            html += `<div class="dash"></div>`;
+            html += `<div class="row total-line">
+                        <span>TOTAL</span>
+                        <span>Rp ${tx.total.toLocaleString()}</span>
+                     </div>`;
+
+            if (tx.paymentMethod === 'cash') {
+                html += `<div class="row muted" style="margin-top:2px;">
+                            <span>Dibayar</span>
+                            <span>Rp ${(tx.cashPaid || 0).toLocaleString()}</span>
+                         </div>`;
+                html += `<div class="row muted" style="margin-top:2px;">
+                            <span>Kembalian</span>
+                            <span>Rp ${(tx.change || 0).toLocaleString()}</span>
+                         </div>`;
+            }
+
+            content.innerHTML = html;
+            modal.classList.remove('hidden');
+            lastReceipt = tx;
+        }
+
+        let lastReceipt = null;
+
+        function doPrint() {
+            const printContent = document.getElementById('receipt');
+            const originalContents = document.body.innerHTML;
+            document.body.innerHTML = printContent.outerHTML;
+            window.print();
+            document.body.innerHTML = originalContents;
+            location.reload();
+        }
+
+        function downloadPDF() {
+            const element = document.getElementById('receipt');
+            if (!element || !lastReceipt) {
+                alert('Tidak ada struk untuk di-download');
+                return;
+            }
+            const opt = {
+                margin: 0,
+                filename: `struk-${lastReceipt.id}.pdf`,
+                image: { type: 'jpeg', quality: 1 },
+                html2canvas: { scale: 3, backgroundColor: '#ffffff', logging: false },
+                jsPDF: { unit: 'mm', format: [80, Math.max(80, element.offsetHeight * 0.264583)], orientation: 'portrait' }
+            };
+            html2pdf().set(opt).from(element).save();
+        }
+
+        function closePrintModal() {
+            document.getElementById('print-modal').classList.add('hidden');
         }
 
         // Load daily report by default
         window.onload = () => {
             loadReport('daily');
-        }
+        };
     </script>
 </body>
 </html>

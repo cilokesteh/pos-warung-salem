@@ -148,10 +148,23 @@
         const auth = firebase.auth();
 
         let allTransactions = []; // cache for reprint
+        let authHandled = false;
 
-        auth.onAuthStateChanged(user => {
-            if (!user) {
-                window.location.href = 'login.html';
+        const unsub = auth.onAuthStateChanged(user => {
+            if (authHandled) return;
+            if (user) {
+                unsub();
+                authHandled = true;
+                // auth OK, stay on page
+            } else {
+                // Only redirect if we're truly not logged in after a short grace period
+                setTimeout(() => {
+                    if (!authHandled) {
+                        authHandled = true;
+                        unsub();
+                        window.location.href = 'login.html';
+                    }
+                }, 800);
             }
         });
 

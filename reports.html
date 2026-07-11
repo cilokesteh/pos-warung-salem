@@ -148,8 +148,8 @@
 
     <script>
         const firebaseConfig = {
-            apiKey: "«redacted»",
-            authDomain: "pos-warung-salem.firebaseapp.com",
+            apiKey: ***
+            authDomain: window.location.hostname,
             projectId: "pos-warung-salem",
             storageBucket: "pos-warung-salem.firebasestorage.app",
             messagingSenderId: "85046866660",
@@ -202,9 +202,8 @@
             } else if (pollCount >= 20) {
                 clearInterval(poll);
                 setBadge('AUTH: tidak login (fbKeys=' + fk + ')', '#dc2626');
-                document.getElementById('login-fallback').classList.remove('hidden');
-                document.getElementById('fb-debug').innerText =
-                    'localStorage Firebase keys: ' + fk + ' | cookies enabled: ' + navigator.cookieEnabled;
+                // Send to login WITH redirect back to reports (no bounce to kasir)
+                window.location.replace('login.html?redirect=reports.html');
             } else {
                 setBadge('AUTH: menunggu... (' + pollCount + ', fb=' + fk + ')', '#ca8a04');
             }

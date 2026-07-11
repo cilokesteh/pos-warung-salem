@@ -221,19 +221,21 @@
 
     <!-- Print Modal -->
     <div id="print-modal" class="hidden fixed inset-0 bg-black/70 flex items-center justify-center z-50">
-        <div class="bg-white text-black rounded-3xl w-full max-w-xs p-6 font-mono text-sm">
-            <div class="text-center mb-4">
-                <h2 class="text-xl font-bold">WARUNG SALEM</h2>
-                <p class="text-xs text-gray-500">Point of Sale System</p>
-                <hr class="my-2 border-dashed border-gray-400">
-            </div>
-            <div id="print-content" class="mb-4">
-                <!-- Print content will be generated here -->
-            </div>
-            <hr class="my-2 border-dashed border-gray-400">
-            <div class="text-center text-xs text-gray-500">
-                <p>Terima kasih atas kunjungan Anda</p>
-                <p>Barang yang sudah dibeli<br>tidak dapat ditukar</p>
+        <div class="bg-white rounded-3xl p-4 max-h-[90vh] overflow-auto">
+            <!-- Receipt (thermal style) — this exact element is used for print & PDF -->
+            <div id="receipt" class="receipt">
+                <div class="text-center mb-2">
+                    <div class="logo">WARUNG SALEM</div>
+                    <div class="sub">Point of Sale System</div>
+                    <div class="dash"></div>
+                </div>
+                <div id="print-content"><!-- generated --></div>
+                <div class="dash"></div>
+                <div class="text-center footer">
+                    <p>Terima kasih atas kunjungan Anda</p>
+                    <p>Barang yang sudah dibeli</p>
+                    <p>tidak dapat ditukar</p>
+                </div>
             </div>
             <div class="mt-4 text-center">
                 <div class="flex gap-2">
@@ -250,6 +252,33 @@
             </div>
         </div>
     </div>
+
+    <style>
+        .receipt {
+            width: 80mm;
+            background: #fff;
+            color: #000;
+            font-family: 'Courier New', Courier, monospace;
+            font-size: 12px;
+            font-weight: 700;
+            line-height: 1.35;
+            padding: 4mm 3mm;
+            box-sizing: border-box;
+        }
+        .receipt .logo { font-size: 18px; font-weight: 900; letter-spacing: 1px; }
+        .receipt .sub { font-size: 10px; font-weight: 400; color: #444; }
+        .receipt .dash { border-top: 1px dashed #000; margin: 6px 0; }
+        .receipt .row { display: flex; justify-content: space-between; }
+        .receipt .muted { font-weight: 400; color: #333; }
+        .receipt .footer { font-weight: 400; font-size: 10px; color: #333; margin-top: 4px; }
+        .receipt .total-line { font-size: 14px; font-weight: 900; }
+        @media print {
+            body * { visibility: hidden; }
+            #print-modal, #print-modal * { visibility: visible; }
+            #print-modal { position: absolute; left: 0; top: 0; background: #fff; }
+            .receipt { width: 80mm; }
+        }
+    </style>
 
     <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore-compat.js"></script>
@@ -752,35 +781,35 @@
             const paymentNames = { cash: 'Cash', qris: 'QRIS', transfer: 'Transfer' };
             
             let html = `
-                <div class="text-xs mb-2">
+                <div class="muted" style="margin-bottom:4px;">
                     <div>Tgl: ${lastTransaction.createdAt.toLocaleDateString('id-ID')} ${lastTransaction.createdAt.toLocaleTimeString('id-ID')}</div>
                     <div>No: ${lastTransaction.id}</div>
                     <div>Bayar: ${paymentNames[lastTransaction.paymentMethod]}</div>
                 </div>
-                <hr class="my-2 border-dashed border-gray-400">
+                <div class="dash"></div>
             `;
 
             lastTransaction.items.forEach(item => {
                 html += `
-                    <div class="flex justify-between text-xs mb-1">
+                    <div class="row" style="margin-bottom:2px;">
                         <span>${item.name} × ${item.quantity}</span>
                         <span>${(item.price * item.quantity).toLocaleString()}</span>
                     </div>
                 `;
             });
 
-            html += `<hr class="my-2 border-dashed border-gray-400">`;
-            html += `<div class="flex justify-between font-bold text-sm">
+            html += `<div class="dash"></div>`;
+            html += `<div class="row total-line">
                         <span>TOTAL</span>
                         <span>Rp ${lastTransaction.total.toLocaleString()}</span>
                      </div>`;
 
             if (lastTransaction.paymentMethod === 'cash') {
-                html += `<div class="flex justify-between text-xs mt-1">
+                html += `<div class="row muted" style="margin-top:2px;">
                             <span>Dibayar</span>
                             <span>Rp ${lastTransaction.cashPaid.toLocaleString()}</span>
                          </div>`;
-                html += `<div class="flex justify-between text-xs mt-1">
+                html += `<div class="row muted" style="margin-top:2px;">
                             <span>Kembalian</span>
                             <span>Rp ${lastTransaction.change.toLocaleString()}</span>
                          </div>`;
@@ -794,31 +823,30 @@
         }
 
         function doPrint() {
-            const printContent = document.getElementById('print-modal');
+            const printContent = document.getElementById('receipt');
             const originalContents = document.body.innerHTML;
-            
-            document.body.innerHTML = printContent.innerHTML;
+
+            document.body.innerHTML = printContent.outerHTML;
             window.print();
             document.body.innerHTML = originalContents;
             location.reload();
         }
 
         function downloadPDF() {
-            const element = document.getElementById('print-content');
+            const element = document.getElementById('receipt');
             if (!element || !lastTransaction) {
                 alert('Tidak ada struk untuk di-download');
                 return;
             }
             const opt = {
-                margin: 10,
+                margin: 0,
                 filename: `struk-${lastTransaction.id}.pdf`,
-                image: { type: 'jpeg', quality: 0.98 },
-                html2canvas: { scale: 2, backgroundColor: '#ffffff' },
-                jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' }
+                image: { type: 'jpeg', quality: 1 },
+                html2canvas: { scale: 3, backgroundColor: '#ffffff', logging: false },
+                jsPDF: { unit: 'mm', format: [80, Math.max(80, element.offsetHeight * 0.264583)], orientation: 'portrait' }
             };
             html2pdf().set(opt).from(element).save();
         }
-
         function closePaymentModal() {
             document.getElementById('payment-modal').classList.add('hidden');
         }

@@ -82,7 +82,14 @@
                 await auth.signInWithEmailAndPassword(email, password);
                 window.location.href = getRedirect();
             } catch (error) {
-                errorMessage.textContent = 'Email atau password salah';
+                console.error('login error', error.code, error.message);
+                if (error.code === 'auth/wrong-password' || error.code === 'auth/user-not-found' || error.code === 'auth/invalid-credential') {
+                    errorMessage.textContent = 'Email atau password salah';
+                } else if (error.code === 'auth/network-request-failed') {
+                    errorMessage.textContent = 'Gagal koneksi ke server. Cek internet.';
+                } else {
+                    errorMessage.textContent = 'Error: ' + error.code;
+                }
                 errorMessage.classList.remove('hidden');
             }
         });

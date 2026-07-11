@@ -6,6 +6,7 @@
     <title>POS Warung Salem</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
 </head>
 <body class="bg-zinc-950 text-zinc-200">
     <div class="min-h-screen">
@@ -652,6 +653,15 @@
                     return;
                 }
             }
+
+            // Confirmation before finishing payment
+            const paymentNames = { cash: 'Cash', qris: 'QRIS', transfer: 'Transfer' };
+            let confirmMsg = `Konfirmasi pembayaran:\n\nTotal: Rp ${total.toLocaleString()}\nMetode: ${paymentNames[selectedPayment]}`;
+            if (selectedPayment === 'cash') {
+                confirmMsg += `\nDibayar: Rp ${cashPaid.toLocaleString()}\nKembalian: Rp ${(cashPaid - total).toLocaleString()}`;
+            }
+            confirmMsg += `\n\nLanjutkan pembayaran?`;
+            if (!confirm(confirmMsg)) return;
             
             const transaction = {
                 items: cart,
@@ -715,6 +725,20 @@
                         <span>Rp ${lastTransaction.total.toLocaleString()}</span>
                      </div>`;
 
+            if (lastTransaction.paymentMethod === 'cash') {
+                html += `<div class="flex justify-between text-xs mt-1">
+                            <span>Dibayar</span>
+                            <span>Rp ${lastTransaction.cashPaid.toLocaleString()}</span>
+                         </div>`;
+                html += `<div class="flex justify-between text-xs mt-1">
+                            <span>Kembalian</span>
+                            <span>Rp ${lastTransaction.change.toLocaleString()}</span>
+                         </div>`;
+            }
+
+            html += `<hr class="my-2 border-dashed border-gray-400">
+                     <div class="text-center text-xs text-gray-500 mt-2">Terima Kasih!</div>`;
+
             content.innerHTML = html;
             modal.classList.remove('hidden');
         }
@@ -730,7 +754,11 @@
         }
 
         function downloadPDF() {
-            const element = document.getElementById('print-modal');
+            const element = document.getElementById('print-content');
+            if (!element || !lastTransaction) {
+                alert('Tidak ada struk untuk di-download');
+                return;
+            }
             const opt = {
                 margin: 10,
                 filename: `struk-${lastTransaction.id}.pdf`,
@@ -738,7 +766,6 @@
                 html2canvas: { scale: 2, backgroundColor: '#ffffff' },
                 jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' }
             };
-            
             html2pdf().set(opt).from(element).save();
         }
 
